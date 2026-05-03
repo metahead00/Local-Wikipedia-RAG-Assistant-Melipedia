@@ -14,7 +14,7 @@ A fully offline Retrieval-Augmented Generation (RAG) system that answers natural
    pip install -r requirements.txt
    ```
 
-2. **Pull the required models**
+2. **Pull the required models - change tinyllama according to your wish, if you will, change generator.py at line 48**
    ```bash
    ollama pull tinyllama
    ollama pull nomic-embed-text
