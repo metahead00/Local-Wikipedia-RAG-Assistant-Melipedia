@@ -5,7 +5,7 @@ PEOPLE = [
     "Frida Kahlo", "Isaac Newton", "Charles Darwin",
     "Cleopatra", "Napoleon Bonaparte", "Mahatma Gandhi",
     "Nelson Mandela", "Aristotle", "Julius Caesar",
-    "Wolfgang Amadeus Mozart", "Galileo Galilei"
+    "Wolfgang Amadeus Mozart", "Galileo Galilei", "Albert Camus"
 ]
 
 PLACES = [

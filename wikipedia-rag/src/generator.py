@@ -3,34 +3,22 @@ Answer generator module for Wikipedia RAG.
 Builds prompts from retrieved chunks and calls Ollama to generate answers.
 """
 
-import re
 import requests
 
-PROMPT_TEMPLATE = """You are a factual assistant. Answer the question using ONLY the context below.
-If the answer cannot be found in the context, respond with exactly:
-"I don't know based on the available information."
-Do not add information from outside the context. Be concise.
+SYSTEM_PROMPT = (
+    "You are a factual assistant. Answer the user's question using ONLY the provided context. "
+    "Write 2-4 complete sentences. "
+    "If the answer is not in the context, respond with exactly: "
+    "'I don't know based on the available information.' "
+    "Do not use outside knowledge."
+)
 
-Context:
-{context}
-
-Question: {query}
-
-Answer:"""
-
-OLLAMA_URL = "http://localhost:11434/api/generate"
-
-# Regex pattern to strip special tokens from tinyllama and similar models
-SPECIAL_TOKEN_PATTERN = re.compile(r"<\|[^|]*\|>")
+OLLAMA_CHAT_URL = "http://localhost:11434/api/chat"
+GENERATION_MODEL = "llama3.2"
 
 
-def build_prompt(query: str, retrieved_chunks: list[dict]) -> str:
-    """
-    Format the prompt template with query and up to 5 chunks.
-    Join chunks with "---" separator.
-    Include entity_title as a header before each chunk:
-    "[Albert Einstein]\nchunk text here"
-    """
+def build_user_message(query: str, retrieved_chunks: list[dict]) -> str:
+    """Format retrieved chunks + query into the user turn of the chat."""
     chunks = retrieved_chunks[:5]
     chunk_parts = []
     for chunk in chunks:
@@ -39,17 +27,17 @@ def build_prompt(query: str, retrieved_chunks: list[dict]) -> str:
         chunk_parts.append(f"[{title}]\n{text}")
 
     context = "\n---\n".join(chunk_parts)
-    return PROMPT_TEMPLATE.format(context=context, query=query)
+    return f"Context:\n{context}\n\nQuestion: {query}"
 
 
 def generate_answer(
     query: str,
     retrieved_chunks: list[dict],
-    model: str = "tinyllama",
-    max_tokens: int = 250,
+    model: str = GENERATION_MODEL,
+    max_tokens: int = 300,
 ) -> dict:
     """
-    Call Ollama /api/generate endpoint.
+    Call Ollama /api/chat endpoint with system + user messages.
 
     Returns:
     {
@@ -71,34 +59,35 @@ def generate_answer(
             "chunks_used": 0,
         }
 
-    prompt = build_prompt(query, retrieved_chunks)
+    user_message = build_user_message(query, retrieved_chunks)
     chunks_used = min(len(retrieved_chunks), 5)
 
     try:
         response = requests.post(
-            OLLAMA_URL,
+            OLLAMA_CHAT_URL,
             json={
                 "model": model,
-                "prompt": prompt,
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user",   "content": user_message},
+                ],
                 "stream": False,
                 "options": {
                     "num_predict": max_tokens,
-                    "temperature": 0.1,
+                    "temperature": 0.2,
                 },
             },
-            timeout=120,
+            timeout=300,
         )
         response.raise_for_status()
         data = response.json()
-        raw_answer = data.get("response", "")
-        # Strip special tokens (e.g. <|im_end|>, <|im_start|>, etc.)
-        answer = SPECIAL_TOKEN_PATTERN.sub("", raw_answer).strip()
+        answer = data.get("message", {}).get("content", "").strip()
     except requests.exceptions.RequestException as exc:
         answer = f"Error contacting Ollama: {exc}"
 
     return {
         "answer": answer,
-        "prompt_used": prompt,
+        "prompt_used": user_message,
         "model": model,
         "chunks_used": chunks_used,
     }
@@ -117,12 +106,12 @@ if __name__ == "__main__":
             "distance": 0.2,
         },
     ]
-    prompt = build_prompt("Who was Albert Einstein?", fake_chunks)
-    print("Prompt preview:")
-    print(prompt[:300])
-    assert "theory of relativity" in prompt
-    assert "Albert Einstein" in prompt
+    msg = build_user_message("Who was Albert Einstein?", fake_chunks)
+    print("User message preview:")
+    print(msg[:300])
+    assert "theory of relativity" in msg
+    assert "Albert Einstein" in msg
 
-    result = generate_answer("test query", [], model="tinyllama")
+    result = generate_answer("test query", [])
     assert "don't know" in result["answer"].lower()
     print("generator.py smoke test PASSED")

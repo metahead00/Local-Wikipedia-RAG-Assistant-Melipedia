@@ -16,7 +16,7 @@ A fully offline Retrieval-Augmented Generation (RAG) system that answers natural
 
 2. **Pull the required models - change tinyllama according to your wish, if you will, change generator.py at line 48**
    ```bash
-   ollama pull tinyllama
+   ollama pull llama3.2
    ollama pull nomic-embed-text
    ```
 
